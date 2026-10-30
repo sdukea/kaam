@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import config, questions, tts
-from .stt import PrismaStream
+from .stt import FINAL_EVENTS, PrismaStream
 
 log = logging.getLogger("kaam")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
@@ -143,7 +143,7 @@ async def listen(browser: WebSocket, lang: str | None = None):
 
     async def prisma_to_browser():
         async for event in prisma.events():
-            if event.get("type") == "transcript":
+            if event.get("type") in FINAL_EVENTS:
                 log.info("[%s] %s", event.get("detected_language_code", "?"), event.get("text"))
             await browser.send_json(event)
 

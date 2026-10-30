@@ -12,7 +12,7 @@ import asyncio
 import time
 import wave
 
-from backend.stt import PrismaStream, stream_pcm_file
+from backend.stt import FINAL_EVENTS, PrismaStream, stream_pcm_file
 
 
 def read_wav(path: str) -> tuple[bytes, int]:
@@ -38,7 +38,7 @@ async def main(path: str, lang: str | None) -> None:
         async def printer():
             async for event in stream.events():
                 kind = event.get("type")
-                if kind == "transcript":
+                if kind in FINAL_EVENTS:
                     t = time.monotonic() - start
                     lang_code = event.get("detected_language_code", "")
                     print(f"[{t:6.1f}s] {lang_code:>6} | {event.get('text', '')}")
@@ -57,6 +57,6 @@ async def main(path: str, lang: str | None) -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("wav")
-    parser.add_argument("--lang", help="e.g. hi-IN, ta-IN, 'hi-IN,en-IN' (default: STT_LANG from .env)")
+    parser.add_argument("--lang", help="one locale, e.g. hi-IN or ta-IN (default: STT_LANG from .env)")
     args = parser.parse_args()
     asyncio.run(main(args.wav, args.lang))

@@ -24,6 +24,10 @@ STT_SAMPLE_RATE = int(_env("STT_SAMPLE_RATE", "16000"))
 STT_MIN_SILENCE_MS = _env("STT_MIN_SILENCE_MS", "500")
 STT_MAX_SPEECH_S = _env("STT_MAX_SPEECH_S", "10.0")
 
+# Partial transcripts (~every 450 ms while someone speaks). Undocumented, but
+# Prisma v3.0 accepts the `x-partials` header and echoes `partials_enabled`.
+STT_PARTIALS = _env("STT_PARTIALS", "true").lower() == "true"
+
 # Words Prisma should listen harder for (Prisma v3.0 `x-keyterms` header, max 200).
 STT_KEYTERMS = [
     "driver", "electrician", "plumber", "carpenter", "painter", "mason",

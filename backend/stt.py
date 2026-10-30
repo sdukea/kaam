@@ -3,7 +3,8 @@
 Prisma expects raw PCM16 mono audio in frames of exactly 1,024 bytes
 (512 samples), sent in real time. All configuration goes in the upgrade
 headers. It replies with JSON events; `transcript` events carry final text
-for one VAD segment (there are no partial transcripts).
+for one VAD segment. With partials enabled, `partial_transcript` events
+stream in while someone speaks and the final event is `final_transcript`.
 """
 
 import asyncio
@@ -16,6 +17,7 @@ from . import config
 
 FRAME_BYTES = 1024
 FRAME_SAMPLES = FRAME_BYTES // 2
+FINAL_EVENTS = {"transcript", "final_transcript"}
 
 
 class PrismaStream:
@@ -46,6 +48,8 @@ class PrismaStream:
         }
         if self.model.startswith("prisma-v3"):
             headers["x-keyterms"] = json.dumps(config.STT_KEYTERMS)
+            if config.STT_PARTIALS:
+                headers["x-partials"] = "true"
         return headers
 
     async def connect(self) -> None:

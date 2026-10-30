@@ -108,6 +108,7 @@ async function askQuestion() {
   $("progress-label").textContent = `Question ${state.index + 1} of ${total}`;
   $("progress-bar").style.width = `${(state.index / total) * 100}%`;
   $("answer").value = "";
+  $("live").textContent = "";
   $("next").textContent = state.index === total - 1 ? "Finish" : "Next";
   state.detected = new Set();
 
@@ -116,6 +117,8 @@ async function askQuestion() {
   await playQuestion();
   await startAnswer();
   setButtons(true);
+  // Warm the cache so the next question plays without a synthesis delay.
+  if (state.index + 1 < total) fetch(`/api/questions/${state.lang}/${state.index + 1}/audio`);
 }
 
 function setButtons(enabled) {
@@ -138,8 +141,11 @@ function startAnswer() {
     ws.onmessage = (e) => {
       const event = JSON.parse(e.data);
       if (event.type === "speech_start") state.pending++;
-      if (event.type === "transcript") {
+      // Words in progress, shown above the answer until Prisma finalizes them.
+      if (event.type === "partial_transcript") $("live").textContent = event.text || "";
+      if (event.type === "transcript" || event.type === "final_transcript") {
         state.pending = Math.max(0, state.pending - 1);
+        $("live").textContent = "";
         if (event.detected_language_code) state.detected.add(event.detected_language_code);
         if (event.text) {
           const box = $("answer");
@@ -203,6 +209,7 @@ $("rerecord").addEventListener("click", async () => {
   setButtons(false);
   discardAnswer();
   $("answer").value = "";
+  $("live").textContent = "";
   state.detected = new Set();
   await startAnswer();
   setButtons(true);

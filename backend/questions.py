@@ -68,9 +68,10 @@ def questions_for(lang: str) -> list[dict]:
 
 
 def stt_lang_for(lang: str) -> str:
-    """Prisma v3.0 language setting for answers in `lang`.
+    """Prisma language setting for answers in `lang`.
 
     Workers mix English trade words into every language ("AC repair",
-    "four-wheeler", "salary"), so listen for English alongside it.
+    "four-wheeler"). Prisma handles that within a single locale and keeps those
+    words in Latin script, and it rejects comma-separated lists in `lang_code`.
     """
-    return lang if lang == "en-IN" else f"{lang},en-IN"
+    return lang
