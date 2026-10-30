@@ -249,13 +249,28 @@ async function finishInterview() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ language: state.lang, consent: true, answers: state.answers }),
   });
-  if (resp.ok) {
-    const { id } = await resp.json();
-    $("saved").textContent = `Saved as interview ${id}. Resume generation is coming next.`;
-  } else {
+  if (!resp.ok) {
     $("saved").textContent = `Could not save (${resp.status}).`;
+    return;
   }
+  state.interviewId = (await resp.json()).id;
+  buildProfile();
 }
+
+async function buildProfile() {
+  $("build").hidden = true;
+  $("saved").textContent = "Writing your resume and recording your introduction…";
+  const resp = await fetch(`/api/interviews/${state.interviewId}/profile`, { method: "POST" });
+  if (resp.ok) {
+    location.href = `/p/${state.interviewId}`;
+    return;
+  }
+  const body = await resp.json().catch(() => ({}));
+  $("saved").textContent = `Could not build the resume: ${body.detail || resp.status}`;
+  $("build").hidden = false;
+}
+
+$("build").addEventListener("click", buildProfile);
 
 $("restart").addEventListener("click", () => location.reload());
 

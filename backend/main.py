@@ -3,21 +3,22 @@
 Proxies browser microphone audio to Prisma (browsers can't set the custom
 headers Prisma needs, and this keeps the API key off the client) and relays
 transcripts back. Also exposes Timbre TTS so the app can talk to the worker,
-and stores finished interviews.
+stores finished interviews, and turns them into shareable profile cards.
 """
 
 import asyncio
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import config, questions, tts
+from . import config, llm, questions, resume, tts
 from .stt import FINAL_EVENTS, PrismaStream
 
 log = logging.getLogger("kaam")
@@ -27,6 +28,16 @@ app = FastAPI(title="Kaam")
 
 AUDIO_CACHE = config.ROOT / "out" / "cache" / "questions"
 INTERVIEWS = config.ROOT / "data" / "interviews"
+PROFILES = config.ROOT / "data" / "profiles"
+FRONTEND = config.ROOT / "frontend"
+ID_RE = re.compile(r"^[0-9a-f]{10}$")
+
+
+def _load(directory, item_id: str) -> dict:
+    path = directory / f"{item_id}.json"
+    if not ID_RE.match(item_id) or not path.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return json.loads(path.read_text())
 
 
 def _check_lang(lang: str) -> None:
@@ -112,6 +123,68 @@ async def save_interview(interview: Interview):
     return {"id": interview_id}
 
 
+@app.post("/api/interviews/{interview_id}/profile")
+async def create_profile(interview_id: str):
+    """Write the resume with the LLM and record spoken intros with Timbre."""
+    interview = _load(INTERVIEWS, interview_id)
+    lang = interview["language"]
+    try:
+        profile = await resume.build_profile(interview)
+    except llm.LLMError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    voice = {"male": config.TTS_VOICE_MALE, "female": config.TTS_VOICE_FEMALE}.get(
+        profile["speaker_gender"], config.TTS_VOICE)
+    intros = {"en": ("en-IN", profile["intro_en"])}
+    if lang != "en-IN":
+        intros["native"] = (lang, profile["intro_native"])
+    PROFILES.mkdir(parents=True, exist_ok=True)
+
+    async def record_intro(which: str, intro_lang: str, text: str) -> str | None:
+        try:
+            wav = await tts.synthesize(text, intro_lang, voice=voice)
+        except (tts.TTSError, RuntimeError) as e:
+            log.warning("Intro TTS failed (%s): %s", which, e)
+            return None
+        (PROFILES / f"{interview_id}-{which}.wav").write_bytes(wav)
+        return f"/api/profiles/{interview_id}/audio/{which}"
+
+    # Sequential: Timbre serves one request per account at a time.
+    audio = {}
+    for which, (intro_lang, text) in intros.items():
+        if text and (url := await record_intro(which, intro_lang, text)):
+            audio[which] = url
+
+    record = {
+        "id": interview_id,
+        "language": lang,
+        "language_name": questions.LANGUAGES[lang]["name"],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "profile": profile,
+        "audio": audio,
+    }
+    (PROFILES / f"{interview_id}.json").write_text(json.dumps(record, ensure_ascii=False, indent=2))
+    return record
+
+
+@app.get("/api/profiles/{profile_id}")
+async def get_profile(profile_id: str):
+    return _load(PROFILES, profile_id)
+
+
+@app.get("/api/profiles/{profile_id}/audio/{which}")
+async def profile_audio(profile_id: str, which: str):
+    path = PROFILES / f"{profile_id}-{which}.wav"
+    if not ID_RE.match(profile_id) or which not in ("en", "native") or not path.exists():
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse(path, media_type="audio/wav")
+
+
+@app.get("/p/{profile_id}")
+async def profile_page(profile_id: str):
+    return FileResponse(FRONTEND / "card.html")
+
+
 @app.websocket("/ws/listen")
 async def listen(browser: WebSocket, lang: str | None = None):
     """Browser sends PCM16 mono audio at STT_SAMPLE_RATE; we send back Prisma events.
@@ -158,4 +231,4 @@ async def listen(browser: WebSocket, lang: str | None = None):
         await prisma.close()
 
 
-app.mount("/", StaticFiles(directory=config.ROOT / "frontend", html=True), name="frontend")
+app.mount("/", StaticFiles(directory=FRONTEND, html=True), name="frontend")

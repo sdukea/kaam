@@ -31,21 +31,26 @@ Work in progress for the Great Indian AI Internship Challenge.
 - [x] Live microphone → Prisma streaming transcription
 - [x] Timbre TTS
 - [x] Guided voice interview in Hindi, English, Tamil, Bengali and Marathi
-- [ ] Resume generation from interview answers
-- [ ] Shareable card with QR code
-- [ ] Employer view with voice introduction
+- [x] Resume generation from interview answers
+- [x] Shareable card with QR code, WhatsApp sharing and image download
+- [x] Spoken introduction in the worker's language and in English
+- [ ] Contact requests that keep the worker's number private
+- [ ] Photo on the card
 
 ## Run it
 
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-cp .env.example .env        # then add your Gnani API key
+cp .env.example .env        # then add your Gnani API key and LLM settings
 uv sync
 uv run uvicorn backend.main:app --reload --port 8000
 ```
 
 Open http://localhost:8000.
+
+The resume writer uses any OpenAI-compatible chat completions API. Set
+`LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` in `.env` (see `.env.example`).
 
 ### Command-line tools
 
@@ -63,8 +68,13 @@ uv run python -m scripts.tts_say "नमस्ते! आपका नाम क
 Browser mic → AudioWorklet (16 kHz PCM16, 1,024-byte frames)
   → backend WebSocket proxy → Prisma streaming STT → live transcript
 Interview questions → Timbre TTS (cached) → played in the browser
-Answers (editable) → saved interview → resume + card (in progress)
+Answers (editable) → LLM → structured two-language profile
+  → Timbre spoken intros (worker's language + English)
+  → shareable card at /p/<id> with QR code
 ```
+
+Timbre serves one request per account at a time, so the backend queues all
+speech synthesis through a single lock and retries on rate limits.
 
 The backend proxies audio because browsers can't set the headers Prisma needs,
 and it keeps the API key off the client.

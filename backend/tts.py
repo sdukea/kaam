@@ -1,5 +1,7 @@
 """Gnani Timbre text-to-speech (REST)."""
 
+import asyncio
+
 import httpx
 
 from . import config
@@ -7,6 +9,11 @@ from . import config
 
 class TTSError(RuntimeError):
     pass
+
+
+# Timbre allows only one active request per account (429 RATE_LIMITED
+# otherwise), so every synthesis in this process goes through one queue.
+_one_at_a_time = asyncio.Lock()
 
 
 async def synthesize(
@@ -32,8 +39,13 @@ async def synthesize(
         },
     }
     headers = {"X-API-Key-ID": config.require_key(), "Content-Type": "application/json"}
-    async with httpx.AsyncClient(timeout=30) as client:
-        resp = await client.post(config.TTS_URL, json=payload, headers=headers)
+    async with _one_at_a_time, httpx.AsyncClient(timeout=30) as client:
+        for attempt in range(3):
+            resp = await client.post(config.TTS_URL, json=payload, headers=headers)
+            if resp.status_code != 429:
+                break
+            # Another process (or a request still finishing) holds the slot.
+            await asyncio.sleep(1.5 * (attempt + 1))
     if resp.status_code != 200:
         raise TTSError(f"TTS failed ({resp.status_code}): {resp.text[:300]}")
     return resp.content

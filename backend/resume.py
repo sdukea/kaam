@@ -1,0 +1,80 @@
+"""Turn a spoken interview into a structured, two-language worker profile."""
+
+from . import llm
+from .questions import LANGUAGES
+
+SYSTEM = """You turn a spoken job interview with an Indian informal-sector worker \
+(driver, electrician, cook, domestic worker, guard, tailor, etc.) into a resume.
+
+The answers are speech transcripts: they may ramble, repeat, mix English trade \
+words into another language, or contain small transcription errors.
+
+Rules:
+- Use only facts the worker actually said. Never invent employers, years, \
+skills, certifications or pay. If something wasn't said, use null or [].
+- Write with dignity and confidence, the way a good recruiter would present a \
+skilled professional, but stay truthful and plain. No buzzwords.
+- Convert spoken numbers to digits ("aath saal" -> 8).
+- "native" fields are in the interview language, written in its own script. \
+If the interview language is English, native fields repeat the English.
+- speaker_gender: infer only from grammatical self-reference (e.g. Hindi \
+"karta hoon" = male, "karti hoon" = female). Otherwise "unknown".
+
+Return a single JSON object with exactly these keys:
+{
+  "name": string|null,
+  "hometown": string|null,
+  "current_city": string|null,
+  "trade_en": string,                 // e.g. "Electrician"
+  "trade_native": string,
+  "years_experience": number|null,
+  "headline_en": string,              // one line, e.g. "Electrician with 8 years of home wiring and AC repair experience"
+  "headline_native": string,
+  "summary_en": string,               // 2-3 sentences, third person
+  "summary_native": string,
+  "skills_en": [string],              // short skill phrases, max 8
+  "skills_native": [string],          // same skills, same order
+  "experience": [{"where_en": string, "role_en": string|null, "duration": string|null, "details_en": string|null}],
+  "proud_of_en": string|null,         // the achievement they mentioned, in one sentence
+  "preferred_areas": [string],
+  "expected_pay_en": string|null,     // as stated, e.g. "Rs 18,000 per month"
+  "languages_spoken": [string],       // in English, e.g. ["Hindi", "Bhojpuri"]
+  "intro_native": string,             // 2-3 sentence first-person spoken intro for employers, in the interview language, natural to say aloud, numbers written as words
+  "intro_en": string,                 // the same intro in simple Indian English, first person
+  "speaker_gender": "male"|"female"|"unknown"
+}"""
+
+
+def _user_prompt(interview: dict) -> str:
+    lang = interview["language"]
+    lines = [f"Interview language: {LANGUAGES[lang]['name']} ({lang})", ""]
+    for a in interview["answers"]:
+        lines.append(f"Q: {a['question']}")
+        lines.append(f"A: {a['transcript'] or '(no answer)'}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+LIST_KEYS = ["skills_en", "skills_native", "experience", "preferred_areas", "languages_spoken"]
+TEXT_KEYS = ["trade_en", "trade_native", "headline_en", "headline_native", "summary_en",
+             "summary_native", "intro_native", "intro_en"]
+
+
+def _clean(profile: dict) -> dict:
+    for key in LIST_KEYS:
+        if not isinstance(profile.get(key), list):
+            profile[key] = []
+    for key in TEXT_KEYS:
+        profile[key] = (profile.get(key) or "").strip()
+    profile["skills_en"] = profile["skills_en"][:8]
+    profile["skills_native"] = profile["skills_native"][:8]
+    if profile.get("speaker_gender") not in ("male", "female"):
+        profile["speaker_gender"] = "unknown"
+    years = profile.get("years_experience")
+    profile["years_experience"] = years if isinstance(years, (int, float)) and years >= 0 else None
+    return profile
+
+
+async def build_profile(interview: dict) -> dict:
+    profile = await llm.complete_json(SYSTEM, _user_prompt(interview))
+    return _clean(profile)

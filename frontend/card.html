@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kaam profile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;600;800&family=Noto+Sans+Devanagari:wght@400;600;800&family=Noto+Sans+Tamil:wght@400;600;800&family=Noto+Sans+Bengali:wght@400;600;800&display=swap">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/card.css">
+</head>
+<body>
+  <main class="card-page">
+    <p id="status" class="muted">Loading profile…</p>
+
+    <article id="card" class="kcard" hidden>
+      <div class="kcard-top">
+        <div class="avatar" id="avatar"></div>
+        <div>
+          <p class="trade" id="trade"></p>
+          <h1 class="name" id="name"></h1>
+          <p class="place" id="place"></p>
+        </div>
+      </div>
+
+      <p class="headline" id="headline"></p>
+      <p class="headline-native" id="headline-native" lang=""></p>
+
+      <div class="stats" id="stats"></div>
+
+      <ul class="chips" id="skills"></ul>
+
+      <div class="kcard-bottom">
+        <div class="voice" id="voice"></div>
+        <div class="qr-wrap">
+          <img id="qr" alt="QR code linking to this profile">
+          <span>Scan to hear me</span>
+        </div>
+      </div>
+
+      <p class="made-with">Made with <strong>Kaam</strong> · voice by Gnani AI</p>
+    </article>
+
+    <div id="actions" class="actions" hidden>
+      <a id="whatsapp" class="btn primary" target="_blank" rel="noopener">Share on WhatsApp</a>
+      <button id="copy" class="btn">Copy link</button>
+      <button id="download" class="btn">Download card</button>
+      <button id="print" class="btn">Print resume</button>
+    </div>
+
+    <section id="resume" class="resume" hidden>
+      <h2>About</h2>
+      <p id="summary"></p>
+      <p id="summary-native" class="native" lang=""></p>
+
+      <div id="experience-block">
+        <h2>Experience</h2>
+        <ul id="experience" class="experience"></ul>
+      </div>
+
+      <div id="proud-block">
+        <h2>Proud of</h2>
+        <p id="proud"></p>
+      </div>
+
+      <h2>Details</h2>
+      <dl id="details" class="details"></dl>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="/card.js"></script>
+</body>
+</html>

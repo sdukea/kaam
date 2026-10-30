@@ -41,6 +41,15 @@ TTS_URL = "https://api.vachana.ai/api/v1/tts/inference"
 # Timbre v3.0 voices speak all 10 supported languages; v2.5 voices are per-language.
 TTS_MODEL = _env("TTS_MODEL", "timbre-v3.0")
 TTS_VOICE = _env("TTS_VOICE", "Shivani")
+# Voice intros on profile cards match the worker's gender when it can be
+# inferred from how they speak about themselves.
+TTS_VOICE_MALE = _env("TTS_VOICE_MALE", "Avinash")
+TTS_VOICE_FEMALE = _env("TTS_VOICE_FEMALE", "Shivani")
+
+# Any OpenAI-compatible chat completions API (hosted, or self-hosted Evon).
+LLM_BASE_URL = _env("LLM_BASE_URL")
+LLM_API_KEY = _env("LLM_API_KEY")
+LLM_MODEL = _env("LLM_MODEL")
 
 
 def require_key() -> str:
