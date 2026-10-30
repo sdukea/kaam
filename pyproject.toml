@@ -1,7 +1,7 @@
 [project]
-name = "kavach"
+name = "kaam"
 version = "0.1.0"
-description = "Live scam-call shield for Indian languages, built on Gnani Prisma and Timbre"
+description = "Speak your skills, get a resume: voice-first profiles for India's informal workers, built on Gnani Prisma and Timbre"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115",

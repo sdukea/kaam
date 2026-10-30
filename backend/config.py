@@ -18,21 +18,25 @@ STT_MODEL = _env("STT_MODEL", "prisma-v3.0")
 STT_LANG = _env("STT_LANG", "indic-auto")
 STT_SAMPLE_RATE = int(_env("STT_SAMPLE_RATE", "16000"))
 
-# Prisma only emits a transcript once VAD closes a segment, so keep segments
-# short: scam callers talk in long monologues and we can't wait for a pause.
-STT_MIN_SILENCE_MS = _env("STT_MIN_SILENCE_MS", "300")
-STT_MAX_SPEECH_S = _env("STT_MAX_SPEECH_S", "8.0")
+# Prisma only emits a transcript once VAD closes a segment. People pause to
+# think mid-answer, so allow a little silence, but cap segment length so text
+# keeps appearing on screen while they talk.
+STT_MIN_SILENCE_MS = _env("STT_MIN_SILENCE_MS", "500")
+STT_MAX_SPEECH_S = _env("STT_MAX_SPEECH_S", "10.0")
 
 # Words Prisma should listen harder for (Prisma v3.0 `x-keyterms` header, max 200).
 STT_KEYTERMS = [
-    "CBI", "police", "digital arrest", "arrest warrant", "OTP", "KYC",
-    "customs", "parcel", "courier", "Aadhaar", "PAN", "AnyDesk",
-    "TeamViewer", "UPI", "RBI", "safe account", "money laundering",
+    "driver", "electrician", "plumber", "carpenter", "painter", "mason",
+    "cook", "chef", "maid", "housekeeping", "nanny", "babysitter",
+    "security guard", "watchman", "tailor", "mechanic", "AC repair",
+    "delivery", "helper", "gardener", "beautician", "welder", "caretaker",
+    "salary", "experience", "license", "two-wheeler", "four-wheeler",
 ]
 
 TTS_URL = "https://api.vachana.ai/api/v1/tts/inference"
-TTS_MODEL = _env("TTS_MODEL", "timbre-v2.5")
-TTS_VOICE = _env("TTS_VOICE", "Nalini")
+# Timbre v3.0 voices speak all 10 supported languages; v2.5 voices are per-language.
+TTS_MODEL = _env("TTS_MODEL", "timbre-v3.0")
+TTS_VOICE = _env("TTS_VOICE", "Shivani")
 
 
 def require_key() -> str:

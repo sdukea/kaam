@@ -1,6 +1,6 @@
 """Synthesize a line with Timbre and save it as WAV.
 
-    uv run python -m scripts.tts_say "रुकिए! यह कॉल धोखा है।" --lang hi-IN
+    uv run python -m scripts.tts_say "नमस्ते! आपका नाम क्या है?" --lang hi-IN
 """
 
 import argparse
@@ -24,7 +24,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("text")
     parser.add_argument("--lang", default="hi-IN")
-    parser.add_argument("--voice", help="Timbre voice, e.g. Nalini, Deepak, Poorvi, Kaveri")
+    parser.add_argument("--voice", help="Timbre voice, e.g. Shivani, Avinash, Lakshmi (v3.0)")
     parser.add_argument("--out", type=Path, default=Path("out/tts.wav"))
     args = parser.parse_args()
     asyncio.run(main(args.text, args.lang, args.voice, args.out))

@@ -1,8 +1,8 @@
-"""Kavach backend.
+"""Kaam backend.
 
 Proxies browser microphone audio to Prisma (browsers can't set the custom
 headers Prisma needs, and this keeps the API key off the client) and relays
-transcripts back. Also exposes Timbre TTS for spoken warnings.
+transcripts back. Also exposes Timbre TTS so the app can talk to the worker.
 """
 
 import asyncio
@@ -16,10 +16,10 @@ from pydantic import BaseModel
 from . import config, tts
 from .stt import PrismaStream
 
-log = logging.getLogger("kavach")
+log = logging.getLogger("kaam")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 
-app = FastAPI(title="Kavach")
+app = FastAPI(title="Kaam")
 
 
 @app.get("/api/health")

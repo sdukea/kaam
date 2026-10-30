@@ -1,10 +1,10 @@
 """Stream a WAV file to Prisma in real time and print transcripts.
 
-    uv run python -m scripts.stream_file call.wav
+    uv run python -m scripts.stream_file answer.wav
 
 The WAV must be 16-bit mono at 8 or 16 kHz. Convert anything else with:
 
-    ffmpeg -i input.m4a -ac 1 -ar 16000 -sample_fmt s16 call.wav
+    ffmpeg -i input.m4a -ac 1 -ar 16000 -sample_fmt s16 answer.wav
 """
 
 import argparse

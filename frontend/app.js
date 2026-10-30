@@ -28,8 +28,8 @@ async function startListening() {
   ws.binaryType = "arraybuffer";
 
   const stream = await navigator.mediaDevices.getUserMedia({
-    // Keep the raw speakerphone signal; browser voice processing tends to
-    // suppress audio that comes from another device's loudspeaker.
+    // Keep the raw signal: Prisma is trained on noisy audio, and browser noise
+    // suppression can clip quiet speech.
     audio: { channelCount: 1, echoCancellation: false, noiseSuppression: false, autoGainControl: true },
   });
   const ctx = new AudioContext();

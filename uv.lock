@@ -214,7 +214,7 @@ wheels = [
 ]
 
 [[package]]
-name = "kavach"
+name = "kaam"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
