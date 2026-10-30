@@ -63,6 +63,13 @@ class PrismaStream:
             del self._buffer[:FRAME_BYTES]
             await self._ws.send(frame)
 
+    async def flush(self, silence_ms: int = 800) -> None:
+        """Send trailing silence at real-time pace so VAD closes the last segment."""
+        silence = b"\x00" * FRAME_BYTES
+        for _ in range(max(1, int(silence_ms / 1000 / self.frame_seconds))):
+            await self.send_audio(silence)
+            await asyncio.sleep(self.frame_seconds)
+
     async def commit(self) -> None:
         """Flush leftover audio (zero-padded) and close the open utterance."""
         if self._buffer:

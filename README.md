@@ -30,7 +30,7 @@ Work in progress for the Great Indian AI Internship Challenge.
 
 - [x] Live microphone → Prisma streaming transcription
 - [x] Timbre TTS
-- [ ] Guided voice interview in Hindi, English, Tamil, Bengali and Marathi
+- [x] Guided voice interview in Hindi, English, Tamil, Bengali and Marathi
 - [ ] Resume generation from interview answers
 - [ ] Shareable card with QR code
 - [ ] Employer view with voice introduction
@@ -63,7 +63,7 @@ uv run python -m scripts.tts_say "नमस्ते! आपका नाम क
 Browser mic → AudioWorklet (16 kHz PCM16, 1,024-byte frames)
   → backend WebSocket proxy → Prisma streaming STT → live transcript
 Interview questions → Timbre TTS (cached) → played in the browser
-Answers → saved interview → resume + card (in progress)
+Answers (editable) → saved interview → resume + card (in progress)
 ```
 
 The backend proxies audio because browsers can't set the headers Prisma needs,
