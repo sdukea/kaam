@@ -10,10 +10,12 @@ import asyncio
 import json
 import logging
 import re
+import time
 import uuid
+from collections import defaultdict, deque
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -26,11 +28,26 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s
 
 app = FastAPI(title="Kaam")
 
-AUDIO_CACHE = config.ROOT / "out" / "cache" / "questions"
-INTERVIEWS = config.ROOT / "data" / "interviews"
-PROFILES = config.ROOT / "data" / "profiles"
+AUDIO_CACHE = config.CACHE_DIR / "questions"
+INTERVIEWS = config.DATA_DIR / "interviews"
+PROFILES = config.DATA_DIR / "profiles"
 FRONTEND = config.ROOT / "frontend"
 ID_RE = re.compile(r"^[0-9a-f]{10}$")
+
+
+_profile_requests: dict[str, deque] = defaultdict(deque)
+_listen_sessions = 0
+
+
+def _rate_limit(ip: str, limit: int, window_s: float = 3600) -> None:
+    """In-memory sliding window; enough for a single-instance deployment."""
+    now = time.monotonic()
+    hits = _profile_requests[ip]
+    while hits and now - hits[0] > window_s:
+        hits.popleft()
+    if len(hits) >= limit:
+        raise HTTPException(status_code=429, detail="Too many resumes from this network. Try again later.")
+    hits.append(now)
 
 
 def _load(directory, item_id: str) -> dict:
@@ -79,32 +96,17 @@ async def question_audio(lang: str, index: int):
     return Response(content=path.read_bytes(), media_type="audio/wav")
 
 
-class SpeakRequest(BaseModel):
-    text: str
-    language: str = "hi-IN"
-    voice: str | None = None
-
-
-@app.post("/api/tts")
-async def speak(req: SpeakRequest):
-    try:
-        audio = await tts.synthesize(req.text, req.language, voice=req.voice or config.TTS_VOICE)
-    except (tts.TTSError, RuntimeError) as e:
-        raise HTTPException(status_code=502, detail=str(e))
-    return Response(content=audio, media_type="audio/wav")
-
-
 class Answer(BaseModel):
-    question_id: str
-    question: str
-    transcript: str
-    detected_languages: list[str] = []
+    question_id: str = Field(max_length=40)
+    question: str = Field(max_length=500)
+    transcript: str = Field(max_length=4000)
+    detected_languages: list[str] = Field(default=[], max_length=10)
 
 
 class Interview(BaseModel):
     language: str
     consent: bool
-    answers: list[Answer] = Field(min_length=1)
+    answers: list[Answer] = Field(min_length=1, max_length=len(questions.QUESTION_IDS))
 
 
 @app.post("/api/interviews")
@@ -124,9 +126,12 @@ async def save_interview(interview: Interview):
 
 
 @app.post("/api/interviews/{interview_id}/profile")
-async def create_profile(interview_id: str):
+async def create_profile(interview_id: str, request: Request):
     """Write the resume with the LLM and record spoken intros with Timbre."""
     interview = _load(INTERVIEWS, interview_id)
+    if (PROFILES / f"{interview_id}.json").exists():
+        return _load(PROFILES, interview_id)
+    _rate_limit(request.client.host if request.client else "?", config.PROFILES_PER_IP_PER_HOUR)
     lang = interview["language"]
     try:
         profile = await resume.build_profile(interview)
@@ -192,16 +197,22 @@ async def listen(browser: WebSocket, lang: str | None = None):
     Text frames from the browser: "flush" sends trailing silence so Prisma
     finalizes the last segment, then replies {"type": "flushed"}.
     """
+    global _listen_sessions
     await browser.accept()
+    if _listen_sessions >= config.MAX_LISTEN_SESSIONS:
+        await browser.send_json({"type": "error", "message": "Kaam is busy right now. Please try again in a minute."})
+        await browser.close()
+        return
     stt_lang = questions.stt_lang_for(lang) if lang in questions.LANGUAGES else config.STT_LANG
     try:
         prisma = PrismaStream(lang=stt_lang)
         await prisma.connect()
     except Exception as e:
         log.warning("Prisma connect failed: %s", e)
-        await browser.send_json({"type": "error", "message": f"Could not reach Prisma: {e}"})
+        await browser.send_json({"type": "error", "message": "Could not reach the speech service."})
         await browser.close()
         return
+    _listen_sessions += 1
 
     async def browser_to_prisma():
         while True:
@@ -222,10 +233,14 @@ async def listen(browser: WebSocket, lang: str | None = None):
 
     tasks = [asyncio.create_task(browser_to_prisma()), asyncio.create_task(prisma_to_browser())]
     try:
-        await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-    except WebSocketDisconnect:
+        done, _ = await asyncio.wait(tasks, timeout=config.MAX_ANSWER_SECONDS, return_when=asyncio.FIRST_COMPLETED)
+        if not done:
+            await browser.send_json({"type": "error", "message": "That answer was very long, so listening stopped."})
+            await browser.close()
+    except (WebSocketDisconnect, RuntimeError):
         pass
     finally:
+        _listen_sessions -= 1
         for t in tasks:
             t.cancel()
         await prisma.close()

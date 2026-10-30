@@ -13,6 +13,17 @@ def _env(name: str, default: str = "") -> str:
 
 GNANI_API_KEY = _env("GNANI_API_KEY")
 
+# Storage. On a host, point DATA_DIR at a persistent volume so profile links
+# (and the QR codes people have shared) survive restarts and redeploys.
+DATA_DIR = Path(_env("DATA_DIR") or ROOT / "data")
+CACHE_DIR = Path(_env("CACHE_DIR") or ROOT / "out" / "cache")
+
+# Abuse limits for a public deployment: every request here spends Gnani
+# credits or LLM tokens.
+MAX_ANSWER_SECONDS = int(_env("MAX_ANSWER_SECONDS", "180"))
+MAX_LISTEN_SESSIONS = int(_env("MAX_LISTEN_SESSIONS", "4"))
+PROFILES_PER_IP_PER_HOUR = int(_env("PROFILES_PER_IP_PER_HOUR", "10"))
+
 STT_URL = "wss://api.vachana.ai/stt/v3/stream"
 STT_MODEL = _env("STT_MODEL", "prisma-v3.0")
 STT_LANG = _env("STT_LANG", "indic-auto")

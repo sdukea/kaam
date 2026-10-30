@@ -62,6 +62,21 @@ uv run python -m scripts.stream_file answer.wav --lang hi-IN
 uv run python -m scripts.tts_say "नमस्ते! आपका नाम क्या है?" --lang hi-IN
 ```
 
+## Deploy
+
+The repo includes a `Dockerfile` that runs on any container host with
+WebSocket support (Railway, Render, Fly.io, a VM).
+
+1. Set the environment variables from `.env.example` as secrets on the host
+   (`GNANI_API_KEY`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`).
+2. Mount a persistent volume at `/data`. Profiles live there, so shared
+   card links and QR codes keep working across redeploys.
+3. Serve over HTTPS. Browsers only allow microphone access on secure pages.
+
+Public deployments are protected by a few limits (all configurable): at most
+4 simultaneous interviews, 3 minutes per answer, and 10 new resumes per
+network per hour. Rebuilding an existing profile returns the saved one.
+
 ## Architecture
 
 ```
