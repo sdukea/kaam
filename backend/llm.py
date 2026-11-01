@@ -30,8 +30,11 @@ async def complete_json(system: str, user: str, temperature: float = 0.2) -> dic
     if config.LLM_API_KEY:
         headers["Authorization"] = f"Bearer {config.LLM_API_KEY}"
     url = config.LLM_BASE_URL.rstrip("/") + "/chat/completions"
-    async with httpx.AsyncClient(timeout=90) as client:
-        resp = await client.post(url, json=payload, headers=headers)
+    try:
+        async with httpx.AsyncClient(timeout=90) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+    except httpx.HTTPError as e:
+        raise LLMError(f"Could not reach the LLM: {e.__class__.__name__}") from e
     if resp.status_code != 200:
         raise LLMError(f"LLM request failed ({resp.status_code}): {resp.text[:300]}")
     try:

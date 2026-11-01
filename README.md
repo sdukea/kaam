@@ -64,18 +64,32 @@ uv run python -m scripts.tts_say "नमस्ते! आपका नाम क
 
 ## Deploy
 
-The repo includes a `Dockerfile` that runs on any container host with
-WebSocket support (Railway, Render, Fly.io, a VM).
+The repo includes a `Dockerfile` and a Render Blueprint (`render.yaml`). It
+runs on any container host with WebSocket support.
 
-1. Set the environment variables from `.env.example` as secrets on the host
-   (`GNANI_API_KEY`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`).
-2. Mount a persistent volume at `/data`. Profiles live there, so shared
-   card links and QR codes keep working across redeploys.
-3. Serve over HTTPS. Browsers only allow microphone access on secure pages.
+**Storage.** Profiles must outlive restarts, because people share card links
+and QR codes. Either mount a persistent volume at `/data`, or set the `S3_*`
+variables to use any S3-compatible bucket (Cloudflare R2, Backblaze B2, AWS S3).
 
-Public deployments are protected by a few limits (all configurable): at most
-4 simultaneous interviews, 3 minutes per answer, and 10 new resumes per
-network per hour. Rebuilding an existing profile returns the saved one.
+### Render (free plan)
+
+Free Render services wipe their disk on restart and sleep after 15 minutes
+without traffic, so this setup uses a bucket for storage and an uptime monitor
+to keep the service awake.
+
+1. Create a bucket and an access key with read/write access to it.
+2. In Render: **New → Blueprint**, pick this repository, and fill in the
+   secrets it asks for (`GNANI_API_KEY`, `LLM_*`, `S3_*`).
+3. Add an uptime monitor (e.g. UptimeRobot) that requests
+   `https://<your-app>.onrender.com/api/health?deep=1` every 5 minutes. This
+   keeps the service awake and emails you if storage, keys or the app fail.
+
+The plain `/api/health` stays green when storage is down, so the host won't
+restart-loop; `?deep=1` reports the real state for alerts.
+
+**Limits.** Public deployments are protected by a few configurable limits:
+at most 4 simultaneous interviews, 3 minutes per answer, and 10 new resumes
+per network per hour. Rebuilding an existing profile returns the saved one.
 
 ## Architecture
 

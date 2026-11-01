@@ -11,9 +11,9 @@ RUN uv sync --frozen --no-dev
 COPY backend backend
 COPY frontend frontend
 
-# Mount a persistent volume here so profiles and shared QR links survive redeploys.
-ENV DATA_DIR=/data CACHE_DIR=/data/cache
-VOLUME /data
+# Profiles live in /data unless S3_BUCKET is set. Without a bucket, mount a
+# persistent volume here so shared card links and QR codes survive redeploys.
+ENV DATA_DIR=/data
 
 ENV PORT=8000
 EXPOSE 8000

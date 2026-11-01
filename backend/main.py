@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from . import config, llm, questions, resume, tts
+from .storage import store
 from .stt import FINAL_EVENTS, PrismaStream
 
 log = logging.getLogger("kaam")
@@ -28,11 +29,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s
 
 app = FastAPI(title="Kaam")
 
-AUDIO_CACHE = config.CACHE_DIR / "questions"
-INTERVIEWS = config.DATA_DIR / "interviews"
-PROFILES = config.DATA_DIR / "profiles"
 FRONTEND = config.ROOT / "frontend"
 ID_RE = re.compile(r"^[0-9a-f]{10}$")
+# Profiles never change once written, so audio can be cached by browsers.
+AUDIO_HEADERS = {"Cache-Control": "public, max-age=86400"}
 
 
 _profile_requests: dict[str, deque] = defaultdict(deque)
@@ -50,11 +50,16 @@ def _rate_limit(ip: str, limit: int, window_s: float = 3600) -> None:
     hits.append(now)
 
 
-def _load(directory, item_id: str) -> dict:
-    path = directory / f"{item_id}.json"
-    if not ID_RE.match(item_id) or not path.exists():
+async def _load(kind: str, item_id: str) -> dict:
+    data = await store.get(f"{kind}/{item_id}.json") if ID_RE.match(item_id) else None
+    if data is None:
         raise HTTPException(status_code=404, detail="Not found")
-    return json.loads(path.read_text())
+    return json.loads(data)
+
+
+async def _save(kind: str, item_id: str, record: dict) -> None:
+    data = json.dumps(record, ensure_ascii=False, indent=2).encode()
+    await store.put(f"{kind}/{item_id}.json", data, "application/json")
 
 
 def _check_lang(lang: str) -> None:
@@ -63,8 +68,20 @@ def _check_lang(lang: str) -> None:
 
 
 @app.get("/api/health")
-async def health():
-    return {"ok": True, "key_configured": bool(config.GNANI_API_KEY)}
+async def health(deep: bool = False):
+    """Liveness for the host; ?deep=1 also checks storage, for uptime alerts."""
+    status = {"ok": True, "key_configured": bool(config.GNANI_API_KEY)}
+    if deep:
+        try:
+            await store.exists("health")
+            status["storage"] = "ok"
+        except Exception as e:
+            log.warning("Storage health check failed: %s", e)
+            status.update(ok=False, storage="unreachable")
+        status["ok"] = status["ok"] and status["key_configured"] and bool(config.LLM_MODEL)
+        if not status["ok"]:
+            return Response(json.dumps(status), status_code=503, media_type="application/json")
+    return status
 
 
 @app.get("/api/languages")
@@ -80,20 +97,20 @@ async def interview_questions(lang: str):
 
 @app.get("/api/questions/{lang}/{index}/audio")
 async def question_audio(lang: str, index: int):
-    """Spoken question, synthesized once and cached on disk to save credits."""
+    """Spoken question, synthesized once and stored to save credits."""
     _check_lang(lang)
     qs = questions.questions_for(lang)
     if not 0 <= index < len(qs):
         raise HTTPException(status_code=404, detail="No such question")
-    path = AUDIO_CACHE / f"{config.TTS_MODEL}-{config.TTS_VOICE}-{lang}-{qs[index]['id']}.wav"
-    if not path.exists():
+    key = f"cache/questions/{config.TTS_MODEL}-{config.TTS_VOICE}-{lang}-{qs[index]['id']}.wav"
+    audio = await store.get(key)
+    if audio is None:
         try:
             audio = await tts.synthesize(qs[index]["text"], lang)
         except (tts.TTSError, RuntimeError) as e:
             raise HTTPException(status_code=502, detail=str(e))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(audio)
-    return Response(content=path.read_bytes(), media_type="audio/wav")
+        await store.put(key, audio, "audio/wav")
+    return Response(content=audio, media_type="audio/wav", headers=AUDIO_HEADERS)
 
 
 class Answer(BaseModel):
@@ -120,17 +137,16 @@ async def save_interview(interview: Interview):
         "created_at": datetime.now(timezone.utc).isoformat(),
         **interview.model_dump(),
     }
-    INTERVIEWS.mkdir(parents=True, exist_ok=True)
-    (INTERVIEWS / f"{interview_id}.json").write_text(json.dumps(record, ensure_ascii=False, indent=2))
+    await _save("interviews", interview_id, record)
     return {"id": interview_id}
 
 
 @app.post("/api/interviews/{interview_id}/profile")
 async def create_profile(interview_id: str, request: Request):
     """Write the resume with the LLM and record spoken intros with Timbre."""
-    interview = _load(INTERVIEWS, interview_id)
-    if (PROFILES / f"{interview_id}.json").exists():
-        return _load(PROFILES, interview_id)
+    interview = await _load("interviews", interview_id)
+    if await store.exists(f"profiles/{interview_id}.json"):
+        return await _load("profiles", interview_id)
     _rate_limit(request.client.host if request.client else "?", config.PROFILES_PER_IP_PER_HOUR)
     lang = interview["language"]
     try:
@@ -143,7 +159,6 @@ async def create_profile(interview_id: str, request: Request):
     intros = {"en": ("en-IN", profile["intro_en"])}
     if lang != "en-IN":
         intros["native"] = (lang, profile["intro_native"])
-    PROFILES.mkdir(parents=True, exist_ok=True)
 
     async def record_intro(which: str, intro_lang: str, text: str) -> str | None:
         try:
@@ -151,7 +166,7 @@ async def create_profile(interview_id: str, request: Request):
         except (tts.TTSError, RuntimeError) as e:
             log.warning("Intro TTS failed (%s): %s", which, e)
             return None
-        (PROFILES / f"{interview_id}-{which}.wav").write_bytes(wav)
+        await store.put(f"profiles/{interview_id}-{which}.wav", wav, "audio/wav")
         return f"/api/profiles/{interview_id}/audio/{which}"
 
     # Sequential: Timbre serves one request per account at a time.
@@ -168,21 +183,22 @@ async def create_profile(interview_id: str, request: Request):
         "profile": profile,
         "audio": audio,
     }
-    (PROFILES / f"{interview_id}.json").write_text(json.dumps(record, ensure_ascii=False, indent=2))
+    await _save("profiles", interview_id, record)
     return record
 
 
 @app.get("/api/profiles/{profile_id}")
 async def get_profile(profile_id: str):
-    return _load(PROFILES, profile_id)
+    return await _load("profiles", profile_id)
 
 
 @app.get("/api/profiles/{profile_id}/audio/{which}")
 async def profile_audio(profile_id: str, which: str):
-    path = PROFILES / f"{profile_id}-{which}.wav"
-    if not ID_RE.match(profile_id) or which not in ("en", "native") or not path.exists():
+    valid = ID_RE.match(profile_id) and which in ("en", "native")
+    audio = await store.get(f"profiles/{profile_id}-{which}.wav") if valid else None
+    if audio is None:
         raise HTTPException(status_code=404, detail="Not found")
-    return FileResponse(path, media_type="audio/wav")
+    return Response(content=audio, media_type="audio/wav", headers=AUDIO_HEADERS)
 
 
 @app.get("/p/{profile_id}")

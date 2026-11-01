@@ -1,0 +1,31 @@
+# Render Blueprint: New → Blueprint → pick this repo.
+# Free web services sleep after 15 minutes without traffic and lose local
+# files on restart, so profiles are stored in an S3-compatible bucket and an
+# external monitor pings /api/health every 5 minutes to keep it awake.
+services:
+  - type: web
+    name: kaam
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: GNANI_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_REGION
+        value: auto

@@ -13,10 +13,15 @@ def _env(name: str, default: str = "") -> str:
 
 GNANI_API_KEY = _env("GNANI_API_KEY")
 
-# Storage. On a host, point DATA_DIR at a persistent volume so profile links
-# (and the QR codes people have shared) survive restarts and redeploys.
+# Storage. Profile links (and the QR codes people have shared) must survive
+# restarts, so on a host either point DATA_DIR at a persistent volume or set
+# S3_BUCKET to use an S3-compatible bucket (R2, B2, S3) instead of local disk.
 DATA_DIR = Path(_env("DATA_DIR") or ROOT / "data")
-CACHE_DIR = Path(_env("CACHE_DIR") or ROOT / "out" / "cache")
+S3_BUCKET = _env("S3_BUCKET")
+S3_ENDPOINT_URL = _env("S3_ENDPOINT_URL")
+S3_ACCESS_KEY_ID = _env("S3_ACCESS_KEY_ID")
+S3_SECRET_ACCESS_KEY = _env("S3_SECRET_ACCESS_KEY")
+S3_REGION = _env("S3_REGION", "auto")
 
 # Abuse limits for a public deployment: every request here spends Gnani
 # credits or LLM tokens.

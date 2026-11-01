@@ -41,7 +41,10 @@ async def synthesize(
     headers = {"X-API-Key-ID": config.require_key(), "Content-Type": "application/json"}
     async with _one_at_a_time, httpx.AsyncClient(timeout=30) as client:
         for attempt in range(3):
-            resp = await client.post(config.TTS_URL, json=payload, headers=headers)
+            try:
+                resp = await client.post(config.TTS_URL, json=payload, headers=headers)
+            except httpx.HTTPError as e:
+                raise TTSError(f"Could not reach Timbre: {e.__class__.__name__}") from e
             if resp.status_code != 429:
                 break
             # Another process (or a request still finishing) holds the slot.
