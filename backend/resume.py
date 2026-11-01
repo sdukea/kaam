@@ -13,7 +13,10 @@ Rules:
 - Use only facts the worker actually said. Never invent employers, years, \
 skills, certifications or pay. If something wasn't said, use null or [].
 - Write with dignity and confidence, the way a good recruiter would present a \
-skilled professional, but stay truthful and plain. No buzzwords.
+skilled professional, but stay truthful and plain. No buzzwords, and no \
+descriptive words the worker didn't use (don't turn "roti" into "soft rotis").
+- Keep the worker's own level of claims. If they only understand a language \
+a little, list it with that level, e.g. "English (basic understanding)".
 - Convert spoken numbers to digits ("aath saal" -> 8).
 - "native" fields are in the interview language, written in its own script. \
 If the interview language is English, native fields repeat the English.
@@ -22,7 +25,8 @@ If the interview language is English, native fields repeat the English.
 
 Return a single JSON object with exactly these keys:
 {
-  "name": string|null,
+  "name": string|null,                // in Latin script, e.g. "Selvi", "Sunita Devi"
+  "name_native": string|null,         // in the interview language's script, e.g. "செல்வி"
   "hometown": string|null,
   "current_city": string|null,
   "trade_en": string,                 // e.g. "Electrician"

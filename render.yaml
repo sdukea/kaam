@@ -19,6 +19,8 @@ services:
         sync: false
       - key: LLM_MODEL
         sync: false
+      - key: LLM_REASONING_EFFORT
+        value: low
       - key: S3_BUCKET
         sync: false
       - key: S3_ENDPOINT_URL

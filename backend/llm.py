@@ -26,6 +26,8 @@ async def complete_json(system: str, user: str, temperature: float = 0.2) -> dic
         "temperature": temperature,
         "response_format": {"type": "json_object"},
     }
+    if config.LLM_REASONING_EFFORT:
+        payload["reasoning_effort"] = config.LLM_REASONING_EFFORT
     headers = {"Content-Type": "application/json"}
     if config.LLM_API_KEY:
         headers["Authorization"] = f"Bearer {config.LLM_API_KEY}"

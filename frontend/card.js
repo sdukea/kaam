@@ -53,6 +53,11 @@ function render({ profile: p, audio, language, language_name: languageName }) {
   $("avatar").textContent = initials(p.name);
   $("trade").textContent = p.trade_en;
   $("name").textContent = name;
+  if (native && p.name_native && p.name_native !== p.name) {
+    $("name-native").textContent = p.name_native;
+    $("name-native").lang = language;
+    $("name-native").hidden = false;
+  }
   $("place").textContent = [p.current_city, p.hometown && p.hometown !== p.current_city ? `from ${p.hometown}` : null]
     .filter(Boolean).join(" · ");
   $("headline").textContent = p.headline_en;
